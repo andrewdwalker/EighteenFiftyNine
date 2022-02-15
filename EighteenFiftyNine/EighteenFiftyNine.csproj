@@ -64,6 +64,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Models\Classes\Device.cs" />
+    <Compile Include="Models\Classes\FaultyHardwareStage.cs" />
+    <Compile Include="Models\Classes\HardwareStage.cs" />
+    <Compile Include="Models\Interfaces\IHardwareStage.cs" />
     <Compile Include="ViewModels\EighteenFiftyNineViewModel.cs" />
     <Compile Include="ViewModels\RelayCommand.cs" />
     <Compile Include="ViewModels\StationDescription.cs" />

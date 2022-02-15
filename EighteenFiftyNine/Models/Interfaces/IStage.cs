@@ -8,11 +8,13 @@ using System.Threading.Tasks;
 namespace EighteenFiftyNine.Models.Interfaces
 {
    
-   public interface IStage : IDevice
+   public interface IStage : IDevice, IDisposable
    {
-      uint Position { get;  set; }
-      void Home();
-      void RequestStagePositionChange(uint position);
-     
+      uint Position { get;   }
+      Task<(bool,string)> Home();
+      Task<(bool, string)> RequestStagePositionChange(uint position);
+      Task<(bool,string)> Initialize();
+      Task<(bool,string)> Shutdown();
+
    }
 }

@@ -1,4 +1,7 @@
-﻿using EighteenFiftyNine.ViewModels;
+﻿
+using EighteenFiftyNine.Models.Classes;
+using EighteenFiftyNine.Models.Interfaces;
+using EighteenFiftyNine.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -17,7 +20,9 @@ namespace EighteenFiftyNine
       protected override void OnStartup(StartupEventArgs e)
       {
          MainWindow view = new MainWindow();
-         EighteenFiftyNineViewModel viewModel = new EighteenFiftyNineViewModel();
+         IStage stageModel = new Stage(new HardwareStage());
+         ILight lightModel = new Light();
+         EighteenFiftyNineViewModel viewModel = new EighteenFiftyNineViewModel(stageModel, lightModel);
          view.DataContext = viewModel;
          view.Show();
 

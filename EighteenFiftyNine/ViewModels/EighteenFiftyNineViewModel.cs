@@ -29,8 +29,10 @@ namespace EighteenFiftyNine.ViewModels
 
       private ICommand _validationCommand = null;
 
-      private ILight _lightModel = new Light();
-      private IStage _stageModel = new Stage();
+      private ILight _lightModel;
+      private IStage _stageModel;
+
+      private bool _validationRoutineRunning = false;
 
 
       private ObservableCollection<StationDescription> _stationDescriptions = new ObservableCollection<StationDescription>();
@@ -43,9 +45,10 @@ namespace EighteenFiftyNine.ViewModels
       #endregion Fields
       #region Constructor
 
-      public EighteenFiftyNineViewModel()
+      public EighteenFiftyNineViewModel(IStage stageModel, ILight lightModel)
       {
-
+         _stageModel = stageModel;
+         _lightModel = lightModel;
          ValidationText = "Run Validation";  // TODO: DON'T Hardcode!
          StationDescriptions.Add(new StationDescription() { Description = "Home", StationNumber = 0 });
          StationDescriptions.Add(new StationDescription() { Description = "Station 1", StationNumber = 1 });
@@ -59,17 +62,14 @@ namespace EighteenFiftyNine.ViewModels
          StationDescriptions.Add(new StationDescription() { Description = "Station 9", StationNumber = 9 });
          StationDescriptions.Add(new StationDescription() { Description = "Station 10", StationNumber = 10 });
 
-         // force an ininitial update of combobox
-         //SelectedStationDescription = StationDescriptions.First(p => p.StationNumber == _stageModel.Position);
+         // force an ininitial update of combobox        
          OnPropertyChanged("SelectedStationDescription");
          OnPropertyChanged("AngleProperty");
 
          _stageModel.PropertyChanged += _stageModel_PropertyChanged;
          _lightModel.PropertyChanged += _lightModel_PropertyChanged;
-         
-      }
 
-     
+      }
 
       #endregion
 
@@ -111,7 +111,7 @@ namespace EighteenFiftyNine.ViewModels
          }
       }
 
-     
+
 
       public SolidColorBrush LEDSafetyColor
       {
@@ -133,7 +133,7 @@ namespace EighteenFiftyNine.ViewModels
          get => _stageModel.On ? new SolidColorBrush(Colors.Red) : new SolidColorBrush(Colors.Green);
       }
 
-      public string  StagePowerText
+      public string StagePowerText
       {
          get => _stageModel.On ? "Stage Power is On!" : "Stage Power Off";
       }
@@ -145,17 +145,8 @@ namespace EighteenFiftyNine.ViewModels
 
       public bool ValidationProcedureEnabled
       {
-         get => _stageModel.On && _lightModel.On;
+         get => _validationRoutineRunning || (_stageModel.On && _lightModel.On);
       }
-
-      public int[] StationsCollection
-      {
-         get
-         {
-            return new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-         }
-      }
-
 
       public ObservableCollection<StationDescription> StationDescriptions
       {
@@ -177,9 +168,9 @@ namespace EighteenFiftyNine.ViewModels
          }
          set
          {
-            
+
             Task.Run(() => _stageModel.RequestStagePositionChange(value.StationNumber));
-            
+
          }
       }
 
@@ -195,7 +186,7 @@ namespace EighteenFiftyNine.ViewModels
       }
       #endregion //properties
 
-      
+
 
       #region ICommmand and implementations
       public ICommand ToggleLED
@@ -234,7 +225,7 @@ namespace EighteenFiftyNine.ViewModels
          }
       }
 
-     
+
       public ICommand ToggleStagePower
       {
          get
@@ -258,7 +249,7 @@ namespace EighteenFiftyNine.ViewModels
             return _initializeStageCommand;
          }
       }
-      
+
       public ICommand ShutdownStageCommand
       {
          get
@@ -297,7 +288,7 @@ namespace EighteenFiftyNine.ViewModels
            {
 
               _lightModel.Intensity += 35;
-             
+
               Thread.Sleep(500); // just a little time to see it
 
            }
@@ -306,7 +297,7 @@ namespace EighteenFiftyNine.ViewModels
          {
             _lightModel.Intensity = 50;
          });
-       
+
 
          // TODO: Toast notification that initialization is complete
       }
@@ -318,7 +309,7 @@ namespace EighteenFiftyNine.ViewModels
          UpdateAllLEDControls();
       }
 
-     
+
       private void ToggleLEDImplementation()
       {
          _lightModel.On = !_lightModel.On;
@@ -327,30 +318,51 @@ namespace EighteenFiftyNine.ViewModels
 
       private void ToggleStagePowerImplementation()
       {
+
+
+         if (_tokenSource != null)
+         {
+            _tokenSource.Cancel();
+            // Very much a hack until I fix the sockets I introduced :)
+            Thread.Sleep(2000); // we assume there is just 1 move to make. Not true until I fix "Home" method.
+         }
+
          _stageModel.On = !_stageModel.On;
          UpdateAllStageControls();
       }
 
-      private void InitializeStageCommandImplementation()
+      private async void InitializeStageCommandImplementation()
       {
          // let's assume "Initialization means turn on, Home, visit each station and return to home!
 
-         Task.Run(() =>
+         _tokenSource = new CancellationTokenSource();
+         _ct = _tokenSource.Token;
+
+         _stageModel.On = true;
+         await _stageModel.Home(); // should make this part cancellable too! Depending where we are, Home() could take a long time!
+         for (uint i = 1; i < 11; i++)
          {
-            _stageModel.On = true;
-            _stageModel.Home();
-            for (uint i = 1; i < 11; i++)
-            {
-               _stageModel.RequestStagePositionChange(i);
-            }
-            _stageModel.Home();
-         });
-         
+            if (_ct != null && _ct.IsCancellationRequested)
+               return;
+
+            await _stageModel.RequestStagePositionChange(i);
+         }
+         if (_ct != null && _ct.IsCancellationRequested)
+            return;
+         await _stageModel.Home();
+
+
       }
 
-      private void ShutdownStageCommandImplementation()
+      private async void ShutdownStageCommandImplementation()
       {
-         _stageModel.Home(); // safest place for stage
+         if (_tokenSource != null)
+         {
+            _tokenSource.Cancel();
+            // Very much a hack just until I fix the sockets I introduced :)
+            await Task.Delay(2000);// we assume there is just 1 move to make. Not true until I fix "Home" method.
+         }
+         await _stageModel.Home(); // safest place for stage
          _stageModel.On = false;
          UpdateAllStageControls();
       }
@@ -359,51 +371,64 @@ namespace EighteenFiftyNine.ViewModels
       /// <summary>
       /// TODO: Cancellation needs a lot of work. It's not responding reliably on first click AND it's very hacky in any case. Re-think!
       /// </summary>
-      private void ValidationCommandImplementation()
+      internal async Task ValidationCommandImplementation() // made internal for unit testing purposes. I suspect there are slicker ways...
       {
 
-         if (ValidationText == "Cancel Validation")  // I'm aware this is a very "hacky" implementation of Cancel. Ran out of time to think more!
+         try
          {
-            if (_tokenSource != null)
-               _tokenSource.Cancel();
-            return; 
-         }
-         _stageModel.Home();
 
-         _tokenSource = new CancellationTokenSource();
-         _ct = _tokenSource.Token;
-         ValidationText = "Cancel Validation";
-            Task.Run(() =>
+            _validationRoutineRunning = true;
+            if (ValidationText == "Cancel Validation")  // I'm aware this is a very "hacky" implementation of Cancel. Ran out of time to think more!
             {
-               for (uint i = 1; i <= 10; i++)
+               if (_tokenSource != null)
+                  _tokenSource.Cancel();
+               return;
+            }
+            await _stageModel.Home();  // TODO: Allow user to cancel during Home part too! Might want cancellation stuff at class level.
+
+            _tokenSource = new CancellationTokenSource();
+            _ct = _tokenSource.Token;
+            ValidationText = "Cancel Validation";
+
+            for (uint i = 1; i <= 10; i++)
+            {
+               if (_ct != null && _ct.IsCancellationRequested)
                {
-                  if (_ct != null && _ct.IsCancellationRequested)
-                  {
-                     // just stop. User may have to initialize again, but c'est la vie.
-                     ValidationText = "Run Validation";
-                     _stageModel.On = false;   // turn off power.  Make them really think about it, since they just cancelled!
-                     return; 
-                  }
-                  _lightModel.On = true;
-                  _stageModel.RequestStagePositionChange(i);
-                  _lightModel.On = false;
-                  // Sleep between each move for 1 second (per requirements)
-                  if (i < 10)
-                     Thread.Sleep(1000);
-                 
-
-                  double newIntensity = _lightModel.Intensity * 1.10;
-                  if (newIntensity <= 255)
-                     _lightModel.Intensity = (byte)newIntensity;
-                  else
-                     _lightModel.Intensity = 255;
-
-                  
+                  // just stop. User may have to initialize again, but c'est la vie.
+                  ValidationText = "Run Validation";
+                  _stageModel.On = false;   // turn off power.  Make them really think about it, since they just cancelled!
+                  return;
                }
-               ValidationText = "Run Validation";
-            },_tokenSource.Token);
-           
-         
+               _lightModel.On = true;
+               await Task.Delay(500); // Allow GUI to rerender. TODO: A better way?
+               await _stageModel.RequestStagePositionChange(i);
+
+               _lightModel.On = false;
+               await Task.Delay(500); // Allow GUI to rerender. TODO: A better way?
+                                      // Sleep between each move for 1 second (per requirements)
+               if (i < 10)
+               {
+                  await Task.Delay(1000);
+                  //Thread.Sleep(1000);
+               }
+
+
+               double newIntensity = _lightModel.Intensity * 1.10;
+               if (newIntensity <= 255)
+                  _lightModel.Intensity = (byte)newIntensity;
+               else
+                  _lightModel.Intensity = 255;
+
+
+            }
+            ValidationText = "Run Validation";
+         }
+         finally
+         {
+            _validationRoutineRunning = false;
+         }
+
+
       }
       #endregion
 
@@ -411,7 +436,7 @@ namespace EighteenFiftyNine.ViewModels
       {
          // TODO: Possibly a better way would be to have the model notify the ViewModel of changes to properties and then we'd act accordingly (like: _stageModel.PropertyChanged += _stageModel_PropertyChanged;)
          // But do recall, that some some of this stuff such as LEDText has nothing to do with the model. It's our invention for the GUI.
-        
+
          OnPropertyChanged("LEDSafetyColor");
          OnPropertyChanged("LEDText");
          OnPropertyChanged("LEDFillColor");
@@ -452,20 +477,4 @@ namespace EighteenFiftyNine.ViewModels
    }
 
 
-   // useful class from https://engy.us/blog/2010/03/31/using-the-dispatcher-with-mvvm/
-   public static class DispatchService
-   {
-      public static void Invoke(Action action)
-      {
-         Dispatcher dispatchObject = Application.Current.Dispatcher;
-         if (dispatchObject == null || dispatchObject.CheckAccess())
-         {
-            action();
-         }
-         else
-         {
-            dispatchObject.Invoke(action);
-         }
-      }
-   }
 }

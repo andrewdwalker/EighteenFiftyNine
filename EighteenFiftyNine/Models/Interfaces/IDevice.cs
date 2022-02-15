@@ -10,8 +10,8 @@ namespace EighteenFiftyNine.Models.Interfaces
    public interface IDevice : INotifyPropertyChanged
    {
       bool On { get; set; }
-      bool Initialize(out string reason);
-      bool Shutdown(out string reason);
+      
+     
       
    }
 }
