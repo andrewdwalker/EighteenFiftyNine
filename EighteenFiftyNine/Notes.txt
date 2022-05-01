@@ -1,0 +1,35 @@
+﻿Your goal is to implement a simple engineering application to control 2 simple devices ( a simple "stage" and a simple led, both simulated for the purpose of the exercise).
+
+This is relevant to the work we are currently doing.
+
+ 
+
+Traditionally, the engineering application exposes  manual control for each device on the system as well as any calibration/testing/validation procedures we might need during instrument bring up / services.
+
+ 
+
+Here is a set of requirements to be implemented:
+
+User should be able to manually control each device thru a UI
+
+Each device should support initialization,  put into a safe state and shutdown.
+
+User should be able to turn on/off LED
+
+User should be able to set LED intensity
+
+User should be able to set position to stage ( position range from 1 to 10) [ for the purpose of the simulated application the move between each position can be set to 1sec].
+
+User should be able to Home the stage
+
+User should be able to run the following simple validation procedure:
+
+Move stage to home
+
+Move to each position with a delay between move of 1sec
+
+LED should be turn On during each position move and off at end of each move
+
+For each move LED intensity should be increase by 10% from the starting intensity
+
+User should be able to cancel the validation procedure
